@@ -32,3 +32,6 @@
 *.out
 *.app
 router
+
+# Files used to testing
+*.txt

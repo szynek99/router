@@ -59,3 +59,7 @@ string Interface::calculateNetwork()
     }
     return result;
 }
+string Interface::calculateCidr()
+{
+    return ip.append("/").append(to_string(mask));
+}
