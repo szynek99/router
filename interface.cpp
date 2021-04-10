@@ -44,3 +44,18 @@ string Interface::calculateBroadcast()
     }
     return result;
 }
+string Interface::calculateNetwork()
+{
+    vector<string> arrIP = tokenize(ip, ".");
+    vector<string> arrMask = tokenize(formatSubnet(mask), ".");
+    string result = "";
+
+    for (int i = 0; i < 4; i++)
+    {
+        uint16_t byte = stoi(arrIP[i]) & stoi(arrMask[i]);
+        result.append(to_string(byte));
+        if (i != 3)
+            result.append(".");
+    }
+    return result;
+}

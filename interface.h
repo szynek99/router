@@ -15,6 +15,7 @@ private:
 public:
     Interface(std::string Iaddr, std::string Imask);
     std::string calculateBroadcast();
+    std::string calculateNetwork();
 };
 
 
