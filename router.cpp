@@ -1,15 +1,20 @@
 #include <iostream>
+#include <netinet/ip.h>
 #include <arpa/inet.h>
 #include "utility.h"
 #include "ipAddress.h"
 #include <unordered_map>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <cstring>
 
 #define INF_REACH 6000
+#define ROUND_TIME_MSEC 15000
+#define ROUND_TIME_SEC 15
+
+#define bzero(b, len) (memset((b), '\0', (len)), (void)0)
 
 using namespace std;
 
@@ -81,6 +86,29 @@ private:
             r_table.insert({network_addr, pair<uint32_t, string>(cost, sender_ip)});
         }
     }
+    void sendRoutingTable(int sockfd)
+    {
+        char message[9];
+        ssize_t message_len = 9;
+
+        struct sockaddr_in server_address;
+        bzero(&server_address, sizeof(server_address));
+        server_address.sin_family = AF_INET;
+        server_address.sin_port = htons(54321);
+
+        for (auto &elem : r_table)
+        {
+            encodeToBytes(elem.first, elem.second.first, message);
+            for (auto &elem : interfaces)
+            {
+                inet_pton(AF_INET, elem.calculateBroadcast().c_str(), &server_address.sin_addr);
+                if (sendto(sockfd, message, message_len, 0, (struct sockaddr *)&server_address, sizeof(server_address)) != message_len)
+                {
+                    throw runtime_error("sendto");
+                }
+            }
+        }
+    };
 
 public:
     Router()
@@ -106,32 +134,65 @@ public:
             r_table.insert({ip_network, pair<uint32_t, string>(cost, i_new.getLocalhost())});
         }
     };
-
     void removeInteface(ipAddress i);
 
-    void sendRoutingTable(int sockfd)
+    void run(int sockfd)
     {
-        char message[9];
-        ssize_t message_len = 9;
-
         struct sockaddr_in server_address;
         bzero(&server_address, sizeof(server_address));
         server_address.sin_family = AF_INET;
         server_address.sin_port = htons(54321);
+        server_address.sin_addr.s_addr = htonl(INADDR_ANY);
 
-        for (auto &elem : r_table)
+        if (bind(sockfd, (struct sockaddr *)&server_address, sizeof(server_address)) < 0)
+            throw runtime_error("bind");
+        long long begin_time = current_timestamp();
+        long long round_time = 0;
+        while (true)
         {
-            encodeToBytes(elem.first, elem.second.first, message);
-            for (auto &elem : interfaces)
+            fd_set descriptors;
+            FD_ZERO(&descriptors);
+            FD_SET(sockfd, &descriptors);
+            struct timeval tv;
+            tv.tv_sec = ROUND_TIME_SEC;
+            tv.tv_usec = 0;
+            int ready = select(sockfd + 1, &descriptors, NULL, NULL, &tv);
+
+            if (ready < 0)
+                throw runtime_error("select");
+            else if (ready == 0)
             {
-                inet_pton(AF_INET, elem.calculateBroadcast().c_str(), &server_address.sin_addr);
-                if (sendto(sockfd, message, message_len, 0, (struct sockaddr *)&server_address, sizeof(server_address)) != message_len)
-                {
-                    throw runtime_error("sendto");
-                }
+                begin_time = current_timestamp();
+                round_time = 0;
+                sendRoutingTable(sockfd);
+                continue;
+            }
+            long long curr_time = current_timestamp();
+
+            struct sockaddr_in sender;
+            socklen_t sender_len = sizeof(sender);
+            char buffer[9];
+
+            ssize_t datagram_len = recvfrom(sockfd, buffer, IP_MAXPACKET, 0, (struct sockaddr *)&sender, &sender_len);
+            round_time += curr_time - begin_time;
+            if (datagram_len < 0)
+            {
+                throw runtime_error("recfrom");
+            }
+            
+            char sender_ip_str[20];
+            string message = decodeFromBytes(buffer);
+            inet_ntop(AF_INET, &(sender.sin_addr), sender_ip_str, sizeof(sender_ip_str));
+            processRoutingInformation(message, sender_ip_str);
+
+            if (round_time >= ROUND_TIME_MSEC)
+            {
+                sendRoutingTable(sockfd);
+                begin_time = current_timestamp();
+                round_time = 0;
             }
         }
-    };
+    }
 };
 int main()
 {
@@ -156,7 +217,14 @@ int main()
         router.addInterface(ipAddress(cidr[0], cidr[1]), stoi(input[2]));
     }
 
-    router.sendRoutingTable(sockfd);
+    try
+    {
+        router.run(sockfd);
+    }
+    catch (const exception &e)
+    {
+        cerr << "error: " << e.what() << "\n";
+    }
 
     close(sockfd);
     return 0;
