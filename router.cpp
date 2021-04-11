@@ -1,7 +1,7 @@
 #include <iostream>
 #include <arpa/inet.h>
 #include "utility.h"
-#include "interface.h"
+#include "ipAddress.h"
 #include <unordered_map>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,34 +14,34 @@ using namespace std;
 class Router
 {
 private:
-    vector<Interface> interfaces;
-    unordered_map<string, pair<uint16_t, Interface>> r_table;
+    vector<ipAddress> interfaces;
+    unordered_map<string, pair<uint16_t, ipAddress>> r_table;
 
 public:
     Router()
     {
-        interfaces = vector<Interface>();
-        r_table = unordered_map<string, pair<uint16_t, Interface>>();
+        interfaces = vector<ipAddress>();
+        r_table = unordered_map<string, pair<uint16_t, ipAddress>>();
     }
-    void addInterface(Interface i_new, uint16_t cost)
+    void addInterface(ipAddress i_new, uint16_t cost)
     {
         interfaces.push_back(i_new);
         string ip_network = i_new.calculateNetwork();
         auto search = r_table.find(ip_network);
         if (search != r_table.end())
         {
-            pair<uint16_t, Interface> i_found = search->second;
+            pair<uint16_t, ipAddress> i_found = search->second;
             if (search->second.first > cost)
             {
-                r_table.insert({ip_network, pair<uint16_t, Interface>(cost, i_new)});
+                r_table.insert({ip_network, pair<uint16_t, ipAddress>(cost, i_new)});
             }
         }
         else
         {
-            r_table.insert({ip_network, pair<uint16_t, Interface>(cost, i_new)});
+            r_table.insert({ip_network, pair<uint16_t, ipAddress>(cost, i_new)});
         }
     };
-    void removeInteface(Interface i);
+    void removeInteface(ipAddress i);
     void sendEcho(int sockfd)
     {
         string echo_message = "test";
@@ -82,7 +82,7 @@ int main()
         getline(cin, str);
         vector<string> input = tokenize(str, " ");
         vector<string> cidr = tokenize(input[0], "/");
-        router.addInterface(Interface(cidr[0], cidr[1]), stoi(input[2]));
+        router.addInterface(ipAddress(cidr[0], cidr[1]), stoi(input[2]));
     }
 
     router.sendEcho(sockfd);

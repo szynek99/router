@@ -2,11 +2,11 @@
 #include <arpa/inet.h>
 #include <string>
 #include "utility.h"
-#include "interface.h"
+#include "ipAddress.h"
 
 using namespace std;
 
-string Interface::formatSubnet(uint16_t bits)
+string ipAddress::formatSubnet(uint16_t bits)
 {
     uint64_t ip = ~((1 << (32 - bits)) - 1);
     unsigned char bytes[4];
@@ -24,12 +24,12 @@ string Interface::formatSubnet(uint16_t bits)
     return result;
 }
 
-Interface::Interface(string Iaddr, string Imask)
+ipAddress::ipAddress(string Iaddr, string Imask)
 {
     ip = Iaddr;
     mask = stoi(Imask);
 }
-string Interface::calculateBroadcast()
+string ipAddress::calculateBroadcast()
 {
     vector<string> arrIP = tokenize(ip, ".");
     vector<string> arrMask = tokenize(formatSubnet(mask), ".");
@@ -44,7 +44,7 @@ string Interface::calculateBroadcast()
     }
     return result;
 }
-string Interface::calculateNetwork()
+string ipAddress::calculateNetwork()
 {
     vector<string> arrIP = tokenize(ip, ".");
     vector<string> arrMask = tokenize(formatSubnet(mask), ".");
@@ -59,7 +59,7 @@ string Interface::calculateNetwork()
     }
     return result;
 }
-string Interface::calculateCidr()
+string ipAddress::calculateCidr()
 {
     return ip.append("/").append(to_string(mask));
 }

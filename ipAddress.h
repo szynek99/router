@@ -5,7 +5,7 @@
 #define INTERFACE_H
 
 
-class Interface
+class ipAddress
 {
 private:
     std::string ip;
@@ -13,7 +13,7 @@ private:
     std::string formatSubnet(uint16_t bits);
 
 public:
-    Interface(std::string Iaddr, std::string Imask);
+    ipAddress(std::string Iaddr, std::string Imask);
     std::string calculateBroadcast();
     std::string calculateNetwork();
     std::string calculateCidr();
