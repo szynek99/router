@@ -68,3 +68,7 @@ string ipAddress::calculateNetworkToCidr()
     string nt = calculateNetwork();
     return nt.append("/").append(to_string(mask));
 }
+string ipAddress::getLocalhost()
+{
+    return "0.0.0.0";
+}

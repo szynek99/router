@@ -9,39 +9,16 @@
 #include <unistd.h>
 #include <errno.h>
 
+#define INF_REACH 6000
+
 using namespace std;
 
 class Router
 {
 private:
     vector<ipAddress> interfaces;
-    unordered_map<string, pair<uint32_t, ipAddress>> r_table;
+    unordered_map<string, pair<uint32_t, string>> r_table;
 
-public:
-    Router()
-    {
-        interfaces = vector<ipAddress>();
-        r_table = unordered_map<string, pair<uint32_t, ipAddress>>();
-    }
-    void addInterface(ipAddress i_new, uint32_t cost)
-    {
-        interfaces.push_back(i_new);
-        string ip_network = i_new.calculateNetworkToCidr();
-        auto search = r_table.find(ip_network);
-        if (search != r_table.end())
-        {
-            pair<uint32_t, ipAddress> i_found = search->second;
-            if (search->second.first > cost)
-            {
-                r_table.insert({ip_network, pair<uint32_t, ipAddress>(cost, i_new)});
-            }
-        }
-        else
-        {
-            r_table.insert({ip_network, pair<uint32_t, ipAddress>(cost, i_new)});
-        }
-    };
-    void removeInteface(ipAddress i);
     void encodeToBytes(string network, uint32_t cost, char byteArray[8])
     {
         cost = htonl(cost);
@@ -78,30 +55,86 @@ public:
         message.append(to_string(cost));
         return message;
     }
-    void sendEcho(int sockfd)
+    void processRoutingInformation(string message, string sender_ip)
     {
-        char echo_message[9];
-        encodeToBytes("8.8.8.8/24", 2137, echo_message);
-        decodeFromBytes(echo_message);
+        vector<string> message_elems = tokenize(message, ":");
+        string network_addr = message_elems[0];
+        uint32_t cost = stoi(message_elems[1]);
+        auto search = r_table.find(network_addr);
+        if (search != r_table.end())
+        {
+            pair<uint32_t, string> entry_found = search->second;
+            if (cost >= INF_REACH)
+            {
+                if (entry_found.second.compare(sender_ip) == 0)
+                {
+                    entry_found.first = INF_REACH;
+                }
+            }
+            else if (cost < entry_found.first)
+            {
+                r_table.insert({network_addr, pair<uint32_t, string>(cost, sender_ip)});
+            }
+        }
+        else
+        {
+            r_table.insert({network_addr, pair<uint32_t, string>(cost, sender_ip)});
+        }
+    }
+
+public:
+    Router()
+    {
+        interfaces = vector<ipAddress>();
+        r_table = unordered_map<string, pair<uint32_t, string>>();
+    }
+    void addInterface(ipAddress i_new, uint32_t cost)
+    {
+        interfaces.push_back(i_new);
+        string ip_network = i_new.calculateNetworkToCidr();
+        auto search = r_table.find(ip_network);
+        if (search != r_table.end())
+        {
+            pair<uint32_t, string> entry_found = search->second;
+            if (entry_found.first > cost)
+            {
+                r_table.insert({ip_network, pair<uint32_t, string>(cost, i_new.getLocalhost())});
+            }
+        }
+        else
+        {
+            r_table.insert({ip_network, pair<uint32_t, string>(cost, i_new.getLocalhost())});
+        }
+    };
+
+    void removeInteface(ipAddress i);
+
+    void sendRoutingTable(int sockfd)
+    {
+        char message[9];
+        ssize_t message_len = 9;
+
         struct sockaddr_in server_address;
         bzero(&server_address, sizeof(server_address));
         server_address.sin_family = AF_INET;
         server_address.sin_port = htons(54321);
-        ssize_t message_len = 9;
-        for (auto &elem : interfaces)
+
+        for (auto &elem : r_table)
         {
-            inet_pton(AF_INET, elem.calculateBroadcast().c_str(), &server_address.sin_addr);
-            if (sendto(sockfd, echo_message, message_len, 0, (struct sockaddr *)&server_address, sizeof(server_address)) != message_len)
+            encodeToBytes(elem.first, elem.second.first, message);
+            for (auto &elem : interfaces)
             {
-                throw runtime_error("sendto");
+                inet_pton(AF_INET, elem.calculateBroadcast().c_str(), &server_address.sin_addr);
+                if (sendto(sockfd, message, message_len, 0, (struct sockaddr *)&server_address, sizeof(server_address)) != message_len)
+                {
+                    throw runtime_error("sendto");
+                }
             }
         }
     };
 };
 int main()
 {
-    string odpowiedz_test = "cos";
-
     Router router = Router();
     string str;
     int no_interfaces;
@@ -123,7 +156,7 @@ int main()
         router.addInterface(ipAddress(cidr[0], cidr[1]), stoi(input[2]));
     }
 
-    router.sendEcho(sockfd);
+    router.sendRoutingTable(sockfd);
 
     close(sockfd);
     return 0;
