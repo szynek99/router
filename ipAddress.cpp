@@ -63,3 +63,8 @@ string ipAddress::calculateCidr()
 {
     return ip.append("/").append(to_string(mask));
 }
+string ipAddress::calculateNetworkToCidr()
+{
+    string nt = calculateNetwork();
+    return nt.append("/").append(to_string(mask));
+}

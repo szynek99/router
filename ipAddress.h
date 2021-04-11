@@ -16,6 +16,7 @@ public:
     ipAddress(std::string Iaddr, std::string Imask);
     std::string calculateBroadcast();
     std::string calculateNetwork();
+    std::string calculateNetworkToCidr();
     std::string calculateCidr();
 };
 
